@@ -1,0 +1,83 @@
+model{
+  
+  for(t in 1:n_obs){
+    I_D_rev[t] <- I_D[n_obs-t+1]     #discretized infection to death dstr
+  }
+  
+  muD[1] <- 0.00001
+  for (t in 2:(ifr_cp1-1)){
+    muD[t] <-  ifr[1] * inprod(c_tot[1:(t-1)],I_D_rev[(n_obs-t+2):n_obs])}
+    for (t in ifr_cp1:(ifr_cp2-1)){
+      muD[t] <-  ifr[2] * inprod(c_tot[1:(t-1)],I_D_rev[(n_obs-t+2):n_obs])}
+    for (t in ifr_cp2:(ifr_cp3-1)){
+      muD[t] <-  ifr[1] * inprod(c_tot[1:(t-1)],I_D_rev[(n_obs-t+2):n_obs])}
+    for (t in ifr_cp3:n_obs){
+      muD[t] <-  ifr[3] * inprod(c_tot[1:(t-1)],I_D_rev[(n_obs-t+2):n_obs])}
+    
+    for (t in 1:n_obs){
+      yD[t] ~ dnegbin(NBp[t], NBr)
+      NBp[t] <- NBr/(NBr + muD[t])
+    }
+    
+    for (t in 1:6){
+      removals[t] <- 0
+    }
+    
+    for (t in 7:n_obs){
+      removals[t] <- c_tot[t-6]
+    }
+    
+    for (t in 1:n_obs){
+      beta[t] <- exp(eta[t])
+      eta[t] <- eta_w[1+(t/8)]
+    }
+    
+    for (t in 2:n_weeks){
+      mu_eta_w[t] <- rho*eta_w[t-1]
+    }
+    
+    r[1] <- 1-exp(-(beta[1]*I0/n_pop))
+    c_tot[1] ~ dbin(r[1],S0)
+    S[1] <- S0 - c_tot[1]
+    I_tot[1] <- I0 + c_tot[1] - removals[1]
+    
+    for (t in 2:n_obs){
+      r[t] <- 1-exp(-(beta[t]*I_tot[t-1]/n_pop))
+      c_tot[t] ~ dbin(r[t],S[t-1])
+      S[t] <- S[t-1]- c_tot[t]
+      I_tot[t] <- I_tot[t-1] + c_tot[t] - removals[t]
+    }
+    
+    eta_w[1] ~ dnorm(0,1)
+    for (t in 2:(sigma_cp1-1)){
+      eta_w[t] ~ dnorm(mu_eta_w[t],tau[1]);
+    }
+    for (t in sigma_cp1:(sigma_cp2-1)){
+      eta_w[t] ~ dnorm(mu_eta_w[t],tau[2]);
+    }
+    for (t in sigma_cp2:n_weeks){
+      eta_w[t] ~ dnorm(mu_eta_w[t],tau[3]);
+    }
+    
+    NBr ~ dgamma(0.1,0.1)
+    rho ~ dunif(-1,1)
+    for (i in 1:3){
+      alphaB[i] <- (((1 - IFRmu[i]) / 0.0000000001) - (1 /IFRmu[i])) * pow(IFRmu[i],2)
+      betaB[i] <- alphaB[i] * ((1 / IFRmu[i]) - 1)
+      ifr[i] ~ dbeta(alphaB[i],betaB[i])
+      tau[i] ~ dgamma(0.01,0.01)
+    }
+    
+    #Generated quantities
+    for (t in 1:n_obs){
+      R_t[t] <- beta[t]*6
+    }
+    
+    for (t in 1:6){
+      c_unrep[t] <- 0
+    }
+    for (t in 7:n_obs){
+      c_unrep[t] <- c_tot[t-6] - yC[t]
+    }
+    
+}
